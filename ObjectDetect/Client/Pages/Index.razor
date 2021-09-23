@@ -1,0 +1,75 @@
+﻿@page "/"
+
+@inject IJSRuntime JSRuntime
+@inject HttpClient HttpClient
+
+@using ObjectDetect.Shared
+
+<div class="row">
+    <div class="input-group pl-0" style="width: 40rem;">
+        <div class="custom-file">
+            <InputFile OnChange="LoadImage" type="file" class="custom-file-input" id="inputGroupFile04" />
+            <label class="custom-file-label" for="inputGroupFile04">Choose file</label>
+        </div>
+        <div class="input-group-append">
+            <button @onclick="DetectObject" class="btn btn-outline-secondary" type="submit">Detect</button>
+        </div>
+    </div>
+
+</div>
+
+<br />
+
+<div class="row">
+        <div class="card" style="width: 20rem;">
+            <img class="card-img-top" src="@(previewImage.ImageData != null ? previewImage.ImageData : "placeholder.svg")" alt="Pre Detection">
+            <div class="card-body">
+                <p class="card-text">Pre Detection</p>
+            </div>
+        </div>
+
+    <div class="card" style="width: 20rem;">
+        <img class="card-img-top" src="@(annotatedImage.ImageData != null ? annotatedImage.ImageData : "placeholder.svg")" alt="Post Detection">
+        <div class="card-body">
+            <p class="card-text">Post Detection</p>
+        </div>
+    </div>
+
+</div>
+
+
+@code{
+    private ImageInfo previewImage { get; set; } = new ImageInfo();
+    private ImageInfo annotatedImage { get; set; } = new ImageInfo();
+
+
+    private async Task LoadImage(InputFileChangeEventArgs e)
+    {
+
+        if (e.File.ContentType.Contains("image"))
+        {
+            var format = "image/png";
+
+            IBrowserFile resizedImage = await e.File.RequestImageFileAsync(format, 500, 500);
+            var imageBuffer = new byte[resizedImage.Size];
+            await resizedImage.OpenReadStream().ReadAsync(imageBuffer);
+
+            var imageData = $"data:{format};base64,{Convert.ToBase64String(imageBuffer)}";
+            previewImage = new ImageInfo { Name = resizedImage.Name, Size = resizedImage.Size, ImageData = imageData };
+
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Invalid file type selected");
+        }
+    }
+
+    private async Task DetectObject()
+    {
+        var response = await HttpClient.PostAsJsonAsync("api/objectdetection", previewImage);
+        var json = await response.Content.ReadAsStringAsync();
+        annotatedImage = JsonSerializer.Deserialize<ImageInfo>(json);
+        StateHasChanged();
+     
+    }
+}
